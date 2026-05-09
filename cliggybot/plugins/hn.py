@@ -25,6 +25,8 @@ async def hn(limit):
             r = await client.get("https://api.microlink.io", params=params)
             r.raise_for_status()
             data = r.json().get('data', {}).get('story', [])
+            if isinstance(data, dict):
+                data = [data]
             
             for item in data[:limit]:
                 title = item.get('title')
