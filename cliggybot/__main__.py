@@ -1,10 +1,13 @@
+import logging
+import os
 import sys
 import asyncio
+
 import pluggy
 import click
 
 # Import your core bot and hookspecs
-from cliggybot import bot
+import cliggybot.bot
 
 
 def load_plugins():
@@ -15,7 +18,7 @@ def load_plugins():
     pm = pluggy.PluginManager("cliggybot")
     
     # This looks for 'cliggybot' plugins installed via pip/setuptools
-    pm.load_setuptools_entry_points("cliggybot")
+    pm.load_setuptools_entrypoints("cliggybot")
     
     return pm
 
@@ -30,9 +33,9 @@ def build_cli(pm):
 
     # Ask plugins for their commands
     # The hook returns a list of lists, so we flatten it
-    commands_lists = pm.hook.register_commands()
-    for cmd_list in commands_lists:
-        for cmd in cmd_list:
+    plugin = pm.get_plugins()
+    if hasattr(plugin, "commands"):
+        for cmd in plugin.commands:
             cli.add_command(cmd)
             
     return cli
@@ -44,19 +47,21 @@ async def run_bot():
     cli_group = build_cli(pm)
 
     # 2. Configuration (In a real app, use env vars or a config file)
-    jid = "bot@example.com"
-    password = "yourpassword"
+    jid = os.environ.get("CLIGGYBOT_XMPP_JID")
+    password = os.environ.get("CLIGGYBOT_XMPP_PASSWORD")
 
     # 3. Initialize the Bot
-    bot = bot.XMPPBot(jid, password, cli_group)
+    bot = cliggybot.bot.XMPPBot(jid, password, cli_group)
 
     # 4. Connect and Run
     # Slixmpp handles the event loop integration
     bot.connect()
+    await bot.start()
     await bot.disconnected  # Keeps the script running until the bot quits
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     try:
         asyncio.run(run_bot())
     except KeyboardInterrupt:

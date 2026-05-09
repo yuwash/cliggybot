@@ -1,6 +1,7 @@
 import asyncio
 import shlex
 import io
+import logging
 from contextlib import redirect_stdout
 
 import slixmpp
@@ -12,6 +13,19 @@ class XMPPBot(slixmpp.ClientXMPP):
         self.cli = click_group
         # Register the event handler
         self.add_event_handler("message", self.handle_message)
+
+    async def start(self):
+        """
+        This is triggered when the session is established.
+        Without sending presence, the bot stays 'offline' to the world.
+        """
+        # 1. Broadcast that we are online
+        self.send_presence()
+        
+        # 2. Request the roster (contact list)
+        # Some servers require this to fully 'activate' the session
+        logging.info("Requesting Roster...")
+        await self.get_roster()
 
     def handle_message(self, msg):
         """
