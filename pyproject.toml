@@ -1,0 +1,14 @@
+[project]
+name = "cliggybot"
+version = "0.1.0"
+description = "A simple chatbot using click for its text-based UI"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.3.0",
+    "pluggy>=1.6.0",
+    "slixmpp>=1.8.6",
+]
+
+[project.entry-points."cliggybot"]
+hn_plugin = "plugins.hn:register_commands"
