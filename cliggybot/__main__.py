@@ -34,38 +34,15 @@ def build_cli(pm):
 
     # Ask plugins for their commands
     # The hook returns a list of lists, so we flatten it
-    commands = []
     for plugin_instance in pm.get_plugins():
         if hasattr(plugin_instance, "commands"):
             for cmd in plugin_instance.commands:
                 cli.add_command(cmd)
-                commands.append(cmd)
             
-    return cli, commands
+    return cli
 
 
-async def run_bot(cli_group, plugin_commands):
-    # Check if any plugin command was invoked
-    # Click's main() will handle parsing and execution if a subcommand is given
-    # We need to check if the command was executed and if it's a plugin command
-    
-    # This is a bit of a workaround. Click's default behavior is to run the command
-    # and exit. We want to intercept this for plugin commands.
-    # A more robust solution might involve inspecting sys.argv before calling cli()
-    # or using a custom Click runner.
-    
-    # For now, we'll assume if a plugin command is present in sys.argv,
-    # it's intended to be run directly.
-    
-    if len(sys.argv) > 1 and sys.argv[1] in [cmd.name for cmd in plugin_commands]:
-        # If a plugin command is specified, run it and exit
-        # Click's cli() will handle the execution and exit
-        logging.info(f"Executing command: {sys.argv[1]}")
-        # We need to call the cli group to parse arguments and run the command
-        # This will naturally exit after the command is done.
-        cli_group() 
-        return # This return is technically unreachable due to sys.exit in click
-
+async def run_bot(cli_group):
     # 1. Configuration (In a real app, use env vars or a config file)
     jid = os.environ.get("CLIGGYBOT_XMPP_JID")
     password = os.environ.get("CLIGGYBOT_XMPP_PASSWORD")
@@ -89,13 +66,30 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     
     pm = load_plugins()
-    cli_group, plugin_commands = build_cli(pm)
+    cli_group = build_cli(pm)
 
-    try:
-        asyncio.run(run_bot(cli_group, plugin_commands))
-    except KeyboardInterrupt:
-        logging.info("Shutting down bot.")
-        sys.exit(0)
-    except Exception as e:
-        logging.exception(f"An unexpected error occurred: {e}")
-        sys.exit(1)
+    # If any arguments are provided, assume it's a command to be executed directly.
+    # Click will handle parsing, validation, and execution.
+    # If the command is invalid, Click will print help and exit.
+    # If the command is valid, Click will execute it and then exit.
+    if len(sys.argv) > 1:
+        try:
+            # Pass sys.argv[1:] to click to avoid processing the script name itself
+            cli_group(sys.argv[1:])
+        except SystemExit as e:
+            # Click raises SystemExit on success or error.
+            # We catch it to ensure our asyncio loop doesn't interfere.
+            sys.exit(e.code)
+        except Exception as e:
+            logging.exception(f"An unexpected error occurred during command execution: {e}")
+            sys.exit(1)
+    else:
+        # No arguments provided, start the XMPP bot.
+        try:
+            asyncio.run(run_bot(cli_group))
+        except KeyboardInterrupt:
+            logging.info("Shutting down bot.")
+            sys.exit(0)
+        except Exception as e:
+            logging.exception(f"An unexpected error occurred: {e}")
+            sys.exit(1)
