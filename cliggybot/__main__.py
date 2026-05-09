@@ -79,7 +79,9 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         try:
             # Pass sys.argv[1:] to the *actual* cli_group object that has plugins
-            cli_group_with_plugins(sys.argv[1:])
+            result = cli_group_with_plugins(sys.argv[1:], standalone_mode=False)
+            if asyncio.iscoroutine(result):
+                asyncio.run(result)
         except SystemExit as e:
             # Click raises SystemExit on success or error.
             # We catch it to ensure our asyncio loop doesn't interfere.
