@@ -11,5 +11,5 @@ dependencies = [
     "slixmpp>=1.8.6",
 ]
 
-[project.entry-points."cliggybot"]
+[project.entry-points."cliggybot_hooks"]
 hn_plugin = "cliggybot.plugins.hn:register_commands"

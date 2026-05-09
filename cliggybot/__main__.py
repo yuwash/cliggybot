@@ -8,6 +8,7 @@ import click
 
 # Import your core bot and hookspecs
 import cliggybot.bot
+import cliggybot.plugins
 
 
 def load_plugins():
@@ -17,8 +18,11 @@ def load_plugins():
     """
     pm = pluggy.PluginManager("cliggybot")
     
-    # This looks for 'cliggybot' plugins installed via pip/setuptools
-    pm.load_setuptools_entrypoints("cliggybot")
+    # Add hook specifications
+    pm.add_hookspecs(cliggybot.plugins)
+    
+    # This looks for 'cliggybot_hooks' plugins installed via pip/setuptools
+    pm.load_setuptools_entrypoints("cliggybot_hooks")
     
     return pm
 
@@ -33,12 +37,11 @@ def build_cli(pm):
         pass
 
     # Ask plugins for their commands
-    # The hook returns a list of lists, so we flatten it
-    for plugin_instance in pm.get_plugins():
-        if hasattr(plugin_instance, "commands"):
-            for cmd in plugin_instance.commands:
-                cli.add_command(cmd)
-            
+    commands_from_plugins = pm.hook.register_commands()
+    # Flatten the list of lists into a single list
+    flattened_commands = [cmd for cmds in commands_from_plugins for cmd in cmds]
+    for cmd in flattened_commands:
+        cli.add_command(cmd)
     return cli
 
 
@@ -66,7 +69,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     
     pm = load_plugins()
-    cli_group = build_cli(pm)
+    # cli_group is the Click group object with all plugin commands attached
+    cli_group_with_plugins = build_cli(pm)
 
     # If any arguments are provided, assume it's a command to be executed directly.
     # Click will handle parsing, validation, and execution.
@@ -74,8 +78,8 @@ if __name__ == "__main__":
     # If the command is valid, Click will execute it and then exit.
     if len(sys.argv) > 1:
         try:
-            # Pass sys.argv[1:] to click to avoid processing the script name itself
-            cli_group(sys.argv[1:])
+            # Pass sys.argv[1:] to the *actual* cli_group object that has plugins
+            cli_group_with_plugins(sys.argv[1:])
         except SystemExit as e:
             # Click raises SystemExit on success or error.
             # We catch it to ensure our asyncio loop doesn't interfere.
@@ -86,7 +90,9 @@ if __name__ == "__main__":
     else:
         # No arguments provided, start the XMPP bot.
         try:
-            asyncio.run(run_bot(cli_group))
+            # Pass the cli_group object to run_bot, though it's not strictly used there
+            # in the current implementation, it's good practice to pass it if needed later.
+            asyncio.run(run_bot(cli_group_with_plugins))
         except KeyboardInterrupt:
             logging.info("Shutting down bot.")
             sys.exit(0)
