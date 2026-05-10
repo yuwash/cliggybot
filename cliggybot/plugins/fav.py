@@ -5,6 +5,40 @@ import pluggy
 from datetime import datetime
 from typing import List, Tuple
 
+class FavManager:
+    def __init__(self, fav_root):
+        self.fav_root = fav_root
+        self.marks_file = os.path.join(fav_root, '.fav', 'marks')
+        
+    def ensure_marks_dir(self):
+        """Ensure the .fav directory exists."""
+        marks_dir = os.path.dirname(self.marks_file)
+        os.makedirs(marks_dir, exist_ok=True)
+    
+    def mark_file(self, relative_path):
+        """Mark a file by adding its relative path to the marks file."""
+        self.ensure_marks_dir()
+        
+        # Add the path to the marks file
+        with open(self.marks_file, 'a') as f:
+            f.write(relative_path + '\n')
+    
+    def get_marks(self):
+        """Get all marked files in reverse order (most recent first)."""
+        if not os.path.exists(self.marks_file):
+            return []
+        
+        with open(self.marks_file, 'r') as f:
+            lines = f.readlines()
+        
+        # Return lines in reverse order (most recent first)
+        return [line.strip() for line in reversed(lines) if line.strip()]
+    
+    def clear_marks(self):
+        """Clear all marks by removing the marks file."""
+        if os.path.exists(self.marks_file):
+            os.remove(self.marks_file)
+
 class FavPath:
     def __init__(self):
         # Get the FAV_ROOT environment variable or default to ~/.fav
@@ -260,6 +294,73 @@ def mkdir(path):
         
     except Exception as e:
         click.echo(f"Error creating directory: {e}")
+
+@fav.command()
+@click.argument('path', nargs=-1)
+@click.option('--clear', is_flag=True, help='Clear all marks')
+def m(path, clear):
+    """Mark files or list marks."""
+    try:
+        fav_path = FavPath()
+        fav_manager = FavManager(fav_path.fav_root)
+        
+        if clear:
+            fav_manager.clear_marks()
+            click.echo("Marks cleared.")
+            return
+        
+        if not path:
+            # Print marks in reverse order (most recent first)
+            marks = fav_manager.get_marks()
+            if marks:
+                for mark in marks:
+                    click.echo(mark)
+            else:
+                click.echo("No marks found.")
+            return
+        
+        # Handle path with potential index
+        path_parts = list(path)
+        resolved_path, index = fav_path.resolve_path_with_index(path_parts)
+        
+        # If we have an index, resolve to the actual file
+        if index is not None:
+            # The resolved_path points to the directory, we need to find the file at the index
+            try:
+                items = []
+                for item in os.listdir(resolved_path):
+                    item_path = os.path.join(resolved_path, item)
+                    if item.startswith('.'):
+                        continue
+                    if os.path.isdir(item_path) and item.isdigit():
+                        continue
+                    stat = os.stat(item_path)
+                    items.append((item, stat.st_mtime))
+                
+                items.sort(key=lambda x: x[1], reverse=True)
+                
+                if index < 0 or index >= len(items):
+                    click.echo(f"Index {index} out of range. Available items: 0-{len(items)-1}")
+                    return
+                
+                # Get the actual file path
+                resolved_path = os.path.join(resolved_path, items[index][0])
+            except Exception:
+                click.echo(f"Error resolving indexed path: {resolved_path}")
+                return
+        
+        # Validate the final resolved path
+        fav_path.validate_path(list(os.path.relpath(resolved_path, fav_path.fav_root).split(os.sep)))
+        
+        # Construct the relative path for marking
+        relative_path = os.path.relpath(resolved_path, fav_path.fav_root)
+        
+        # Mark the file
+        fav_manager.mark_file(relative_path)
+        click.echo(f"Marked: {relative_path}")
+        
+    except Exception as e:
+        click.echo(f"Error: {e}")
 
 # Helper function to resolve item by index
 def resolve_item_by_index(path: str, index: int) -> str:
