@@ -14,3 +14,4 @@ dependencies = [
 [project.entry-points."cliggybot_hooks"]
 echo_plugin = "cliggybot.plugins.echo"
 hn_plugin = "cliggybot.plugins.hn"
+nn_plugin = "cliggybot.plugins.nn"
