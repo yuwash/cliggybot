@@ -234,6 +234,33 @@ def head(path):
     except Exception as e:
         click.echo(f"Error: {e}")
 
+@fav.command()
+@click.argument('path', nargs=-1)
+def mkdir(path):
+    """Create directories recursively under FAV_ROOT with optional path."""
+    try:
+        fav_path = FavPath()
+        
+        if not path:
+            raise click.BadParameter("A directory path is required")
+        
+        # Convert tuple to list for easier handling
+        path_parts = list(path)
+        
+        # Validate the path
+        fav_path.validate_path(path_parts)
+        
+        # Construct the full path
+        resolved_path = os.path.join(fav_path.fav_root, *path_parts)
+        
+        # Create the directory recursively
+        os.makedirs(resolved_path, exist_ok=True)
+        
+        click.echo(f"Created directory: {resolved_path}")
+        
+    except Exception as e:
+        click.echo(f"Error creating directory: {e}")
+
 # Helper function to resolve item by index
 def resolve_item_by_index(path: str, index: int) -> str:
     """Resolve an item by index in a given path."""
