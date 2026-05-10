@@ -38,6 +38,27 @@ class FavManager:
         """Clear all marks by removing the marks file."""
         if os.path.exists(self.marks_file):
             os.remove(self.marks_file)
+    
+    def pop_mark(self):
+        """Remove the latest mark from the marks file."""
+        if not os.path.exists(self.marks_file):
+            return None
+        
+        # Read all marks
+        with open(self.marks_file, 'r') as f:
+            lines = f.readlines()
+        
+        if not lines:
+            return None
+        
+        # Remove the last line (latest mark)
+        latest_mark = lines.pop()
+        
+        # Write back all but the last line
+        with open(self.marks_file, 'w') as f:
+            f.writelines(lines)
+        
+        return latest_mark.strip()
 
 class FavPath:
     def __init__(self):
@@ -298,7 +319,8 @@ def mkdir(path):
 @fav.command()
 @click.argument('path', nargs=-1)
 @click.option('--clear', is_flag=True, help='Clear all marks')
-def m(path, clear):
+@click.option('--pop', is_flag=True, help='Remove the latest mark')
+def m(path, clear, pop):
     """Mark files or list marks."""
     try:
         fav_path = FavPath()
@@ -307,6 +329,14 @@ def m(path, clear):
         if clear:
             fav_manager.clear_marks()
             click.echo("Marks cleared.")
+            return
+        
+        if pop:
+            popped_mark = fav_manager.pop_mark()
+            if popped_mark:
+                click.echo(f"Popped: {popped_mark}")
+            else:
+                click.echo("No marks to pop.")
             return
         
         if not path:
