@@ -149,6 +149,91 @@ def ls(path):
     except Exception as e:
         click.echo(f"Error: {e}")
 
+@fav.command()
+@click.argument('path', nargs=-1)
+def head(path):
+    """Show the first 5 lines or first 256 bytes of a file, whichever is less."""
+    try:
+        fav_path = FavPath()
+        
+        if not path:
+            raise click.BadParameter("A file path is required")
+        
+        # Convert tuple to list for easier handling
+        path_parts = list(path)
+        
+        # Validate the path
+        fav_path.validate_path(path_parts)
+        
+        # Resolve path with index
+        resolved_path, index = fav_path.resolve_path_with_index(path_parts)
+        
+        # If we have an index, we need to resolve the actual file path
+        if index is not None:
+            # The resolved_path points to the directory, we need to find the file at the index
+            try:
+                items = []
+                for item in os.listdir(resolved_path):
+                    item_path = os.path.join(resolved_path, item)
+                    if item.startswith('.'):
+                        continue
+                    if os.path.isdir(item_path) and item.isdigit():
+                        continue
+                    stat = os.stat(item_path)
+                    items.append((item, stat.st_mtime))
+                
+                items.sort(key=lambda x: x[1], reverse=True)
+                
+                if index < 0 or index >= len(items):
+                    click.echo(f"Index {index} out of range. Available items: 0-{len(items)-1}")
+                    return
+                
+                # Get the actual file path
+                resolved_path = os.path.join(resolved_path, items[index][0])
+            except Exception:
+                click.echo(f"Error resolving indexed path: {resolved_path}")
+                return
+        
+        # Ensure the path exists and is a file
+        if not os.path.exists(resolved_path):
+            click.echo(f"File does not exist: {resolved_path}")
+            return
+        
+        if not os.path.isfile(resolved_path):
+            click.echo(f"Path is not a file: {resolved_path}")
+            return
+        
+        # Read configuration from environment variables
+        default_lines = int(os.environ.get('CLIGGYBOT_FAV_HEAD_LINES', '5'))
+        default_bytes = int(os.environ.get('CLIGGYBOT_FAV_HEAD_BYTES', '256'))
+        
+        # Read file content
+        with open(resolved_path, 'rb') as f:
+            content = f.read(default_bytes)
+        
+        # Decode to text for line counting
+        try:
+            content_text = content.decode('utf-8')
+        except UnicodeDecodeError:
+            # If we can't decode as UTF-8, just show the raw bytes
+            click.echo(content)
+            return
+        
+        # Split into lines
+        lines = content_text.splitlines(keepends=True)
+        
+        # If we have fewer lines than the limit, show all lines
+        if len(lines) <= default_lines:
+            # Show all lines
+            click.echo(content_text.rstrip('\n'))
+        else:
+            # Show up to default_lines
+            result = ''.join(lines[:default_lines])
+            click.echo(result.rstrip('\n'))
+            
+    except Exception as e:
+        click.echo(f"Error: {e}")
+
 # Helper function to resolve item by index
 def resolve_item_by_index(path: str, index: int) -> str:
     """Resolve an item by index in a given path."""
