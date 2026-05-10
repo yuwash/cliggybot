@@ -8,9 +8,10 @@ import slixmpp
 
 
 class XMPPBot(slixmpp.ClientXMPP):
-    def __init__(self, jid, password, click_group):
+    def __init__(self, jid, password, click_group, allowed_jid=None):
         super().__init__(jid, password)
         self.cli = click_group
+        self.allowed_jid = allowed_jid
         # Register the event handler
         self.add_event_handler("message", self.handle_message)
 
@@ -34,6 +35,11 @@ class XMPPBot(slixmpp.ClientXMPP):
         """
         # Only respond to direct 'chat' messages and ignore our own messages
         if msg['type'] in ('chat', 'normal') and msg['from'] != self.boundjid:
+            # Check if allowed JID restriction is enabled and sender is not allowed
+            if self.allowed_jid and str(msg['from']).split('/')[0] != self.allowed_jid:
+                logging.info(f"Ignoring message from unauthorized JID: {msg['from']}")
+                return
+            
             # We schedule the command processing on the event loop
             # so the XMPP connection remains responsive.
             asyncio.create_task(self.process_command(msg))

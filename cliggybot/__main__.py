@@ -45,7 +45,7 @@ def build_cli(pm):
     return cli
 
 
-async def run_bot(cli_group):
+async def run_bot(cli_group, allowed_jid=None):
     # 1. Configuration (In a real app, use env vars or a config file)
     jid = os.environ.get("CLIGGYBOT_XMPP_JID")
     password = os.environ.get("CLIGGYBOT_XMPP_PASSWORD")
@@ -55,7 +55,7 @@ async def run_bot(cli_group):
         sys.exit(1)
 
     # 2. Initialize the Bot
-    bot = cliggybot.bot.XMPPBot(jid, password, cli_group)
+    bot = cliggybot.bot.XMPPBot(jid, password, cli_group, allowed_jid)
 
     # 3. Connect and Run
     # Slixmpp handles the event loop integration
@@ -91,10 +91,12 @@ if __name__ == "__main__":
             sys.exit(1)
     else:
         # No arguments provided, start the XMPP bot.
+        # Load allowed JID from environment variable
+        allowed_jid = os.environ.get("CLIGGYBOT_XMPP_ALLOWED_JID")
         try:
             # Pass the cli_group object to run_bot, though it's not strictly used there
             # in the current implementation, it's good practice to pass it if needed later.
-            asyncio.run(run_bot(cli_group_with_plugins))
+            asyncio.run(run_bot(cli_group_with_plugins, allowed_jid))
         except KeyboardInterrupt:
             logging.info("Shutting down bot.")
             sys.exit(0)
