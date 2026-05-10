@@ -59,6 +59,22 @@ class FavManager:
             f.writelines(lines)
         
         return latest_mark.strip()
+    
+    def remove_marked_files(self, marked_files):
+        """Remove successfully moved files from marks."""
+        if not os.path.exists(self.marks_file):
+            return
+        
+        # Read all current marks
+        with open(self.marks_file, 'r') as f:
+            lines = f.readlines()
+        
+        # Filter out the successfully moved files
+        remaining_lines = [line for line in lines if line.strip() not in marked_files]
+        
+        # Write back the remaining marks
+        with open(self.marks_file, 'w') as f:
+            f.writelines(remaining_lines)
 
 class FavPath:
     def __init__(self):
@@ -389,6 +405,78 @@ def m(path, clear, pop):
         fav_manager.mark_file(relative_path)
         click.echo(f"Marked: {relative_path}")
         
+    except Exception as e:
+        click.echo(f"Error: {e}")
+
+@fav.command()
+@click.argument('destination', nargs=-1)
+def mv(destination):
+    """Move all marked files to the specified directory."""
+    try:
+        fav_path = FavPath()
+        fav_manager = FavManager(fav_path.fav_root)
+        
+        # Handle nested directory paths properly
+        # Convert tuple to list for easier handling
+        dest_parts = list(destination)
+        
+        # Validate destination path
+        fav_path.validate_path(dest_parts)
+        
+        # Resolve destination path
+        dest_path = os.path.join(fav_path.fav_root, *dest_parts)
+        
+        # Create the destination directory if it doesn't exist
+        os.makedirs(dest_path, exist_ok=True)
+        
+        # Check if destination exists and is a directory
+        if not os.path.exists(dest_path):
+            raise click.BadParameter(f"Destination directory does not exist: {dest_path}")
+        
+        if not os.path.isdir(dest_path):
+            raise click.BadParameter(f"Destination is not a directory: {dest_path}")
+        
+        # Get all marked files
+        marked_files = fav_manager.get_marks()
+        if not marked_files:
+            click.echo("No marked files to move.")
+            return
+        
+        # Move each marked file/directory
+        successfully_moved = []
+        for relative_path in marked_files:
+            source_path = os.path.join(fav_path.fav_root, relative_path)
+            
+            # Check if source file/directory exists
+            if not os.path.exists(source_path):
+                click.echo(f"Skipping {relative_path}: File/directory does not exist")
+                continue
+            
+            # Construct destination path
+            filename = os.path.basename(relative_path)
+            dest_file_path = os.path.join(dest_path, filename)
+            
+            # Check if file/directory with same name already exists in destination
+            if os.path.exists(dest_file_path):
+                click.echo(f"Skipping {relative_path}: File/directory already exists in destination")
+                continue
+            
+            try:
+                # Move the file/directory
+                os.rename(source_path, dest_file_path)
+                successfully_moved.append(relative_path)
+                click.echo(f"Moved: {relative_path}")
+            except Exception as e:
+                click.echo(f"Failed to move {relative_path}: {e}")
+                continue
+        
+        # Remove successfully moved files from marks
+        if successfully_moved:
+            fav_manager.remove_marked_files(successfully_moved)
+            click.echo(f"Removed {len(successfully_moved)} files from marks")
+        else:
+            click.echo("No files were successfully moved.")
+            
     except Exception as e:
         click.echo(f"Error: {e}")
 
